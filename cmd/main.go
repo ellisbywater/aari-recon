@@ -3,7 +3,6 @@ package main
 import (
 	"aari-recon/internal/coinbase"
 	"fmt"
-	"os"
 
 	"github.com/joho/godotenv"
 )
@@ -18,6 +17,7 @@ const (
 )
 
 type Assumption struct {
+	Id        string `json:"id"`
 	Text      string `json:"text"`
 	Sentiment bool   `json:"sentiment"`
 }
@@ -39,11 +39,6 @@ func main() {
 		fmt.Println("Error loading env vars")
 		return
 	}
-	environs := os.Environ()
-	for _, s := range environs {
-		fmt.Println(s)
-	}
-
 	jwt, err := coinbase.BuildJwt()
 	if err != nil {
 		fmt.Println("Error building jwt:  ", err)

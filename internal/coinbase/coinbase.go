@@ -1,7 +1,6 @@
 package coinbase
 
 import (
-	coinbase "aari-recon/internal/coinbase/credentials"
 	"aari-recon/internal/env"
 	"crypto/rand"
 	"crypto/x509"
@@ -9,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"net/http"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -19,6 +19,14 @@ const (
 	jwtRequestHost   = "api.coinbase.com"
 	jwtRequestPath   = "/api/v3/brokerage/accounts"
 	jwtRequestMethod = "GET"
+	OneMinGran       = "ONE_MINUTE"
+	FiveMinGran      = "FIVE_MINUTE"
+	FifteenMinGran   = "FIFTEEN_MINUTE"
+	ThirtyMinGran    = "THIRTY_MINUTE"
+	OneHour          = "ONE_HOUR"
+	TwoHour          = "TWO_HOUR"
+	SixHourGran      = "SIX_HOUR"
+	OneDayGran       = "ONE_DAY"
 )
 
 var max = big.NewInt(math.MaxInt64)
@@ -40,12 +48,12 @@ type APIKeyClaims struct {
 
 func BuildJwt() (string, error) {
 	uri := fmt.Sprintf("%s %s%s", jwtRequestMethod, jwtRequestHost, jwtRequestPath)
-	keySecret, err := env.GetStringNoFallback("COINBASE_PRIVATE_KEY")
-	fmt.Println("COINBASE PRIVATE KEY >>>> ", keySecret)
+
+	privateKey, err := env.GetStringNoFallback("COINBASE_PRIVATE_KEY")
 	if err != nil {
-		return "", fmt.Errorf("jwt: Could not decode")
+		return "", fmt.Errorf("jwt: error fetching private key")
 	}
-	block, _ := pem.Decode([]byte(coinbase.COINBASE_PRIVATE_KEY))
+	block, _ := pem.Decode([]byte(privateKey))
 	if block == nil {
 		return "", fmt.Errorf("jwt: Could not decode private key")
 	}
@@ -78,4 +86,64 @@ func BuildJwt() (string, error) {
 		return "", fmt.Errorf("jwt: %w", err)
 	}
 	return jwtString, nil
+}
+
+func FetchAssetCandles(ticker string, start string, end string, granularity string) error {
+	jwt, err := BuildJwt()
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(
+		"GET",
+		fmt.Sprintf("https://api.coinbase.com/api/v3/brokerage/products/%s/candles?start=%s&end=%s&granularity=%s",
+			ticker,
+			start,
+			end,
+			granularity),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	req.Header = http.Header{
+		"Content-Type":  {"application/json"},
+		"Authorization": {fmt.Sprintf("Bearer %s", jwt)},
+	}
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	fmt.Println("response >> ", res)
+	return nil
+}
+
+func FetchAsset(ticker string) error {
+	jwt, err := BuildJwt()
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(
+		"GET",
+		fmt.Sprintf("https://api.coinbase.com/api/v3/brokerage/products/%s", ticker),
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	req.Header = http.Header{
+		"Content-Type":  {"application/json"},
+		"Authorization": {fmt.Sprintf("Bearer %s", jwt)},
+	}
+
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	fmt.Println("response >> ", res)
+	return nil
 }
