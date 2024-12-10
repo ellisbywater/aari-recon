@@ -1,11 +1,11 @@
 package techa
 
 type RSI struct {
-	AvgGain  float64
-	AvgLoss  float64
-	RS       float64
-	RSIValue float64
-	period   int
+	AvgGains  []float64
+	AvgLosses []float64
+	RS        []float64
+	RSIValues []float64
+	period    int
 }
 
 func NewRSI(period int) *RSI {
@@ -13,6 +13,28 @@ func NewRSI(period int) *RSI {
 }
 
 func (rsi *RSI) Calculate(closes []float64) {
+	rsi.AvgGains = make([]float64, len(closes))
+	rsi.AvgLosses = make([]float64, len(closes))
+	rsi.RS = make([]float64, len(closes))
+	rsi.RSIValues = make([]float64, len(closes))
+
+	for i := 0; i < len(closes); i++ {
+		if i < rsi.period {
+			rsi.AvgGains[i] = 0.0
+			rsi.AvgLosses[i] = 0.0
+			rsi.RS[i] = 0.0
+			rsi.RSIValues[i] = 0.0
+		} else {
+			avgGain, avgLoss, rs, rsiValue := calculateCurrentRSI(closes[i-rsi.period : i])
+			rsi.AvgGains[i] = avgGain
+			rsi.AvgLosses[i] = avgLoss
+			rsi.RS[i] = rs
+			rsi.RSIValues[i] = rsiValue
+		}
+	}
+}
+
+func calculateCurrentRSI(closes []float64) (float64, float64, float64, float64) {
 	var (
 		gainSum   float64
 		lossSum   float64
@@ -25,9 +47,6 @@ func (rsi *RSI) Calculate(closes []float64) {
 	)
 
 	for i := 0; i < len(closes); i++ {
-		if i < rsi.period {
-			continue
-		}
 		var gain, loss float64
 		if closes[i] > closes[i-1] {
 			gain = closes[i] - closes[i-1]
@@ -46,28 +65,35 @@ func (rsi *RSI) Calculate(closes []float64) {
 			rsiValue = 100 - (100 / (1 + rs))
 		}
 	}
-
-	rsi.AvgGain = avgGain
-	rsi.AvgLoss = avgLoss
-	rsi.RS = rs
-	rsi.RSIValue = rsiValue
+	return avgGain, avgLoss, rs, rsiValue
 }
 
 type StochRSI struct {
-	rsiValues []float64
-	hh        float64
-	ll        float64
+	rsiValues      []float64
+	stochRSIValues []float64
+	hh             float64
+	ll             float64
+	period         int
 }
 
-func (s *StochRSI) Calculate(prices []float64) []float64 {
-	highest, lowest := highestAndLowest(prices)
+func (s *StochRSI) Calculate(closes []float64) {
+	highest, lowest := highestAndLowest(closes)
 	s.hh = highest
 	s.ll = lowest
 	delta := s.hh - s.ll
-	stochrsiValues := make([]float64, len(prices))
+	s.stochRSIValues = make([]float64, len(closes))
+	s.rsiValues = make([]float64, len(closes))
 
-	for i, rsi := range s.rsiValues {
-		stochrsiValues[i] = (rsi - s.ll) / delta * 100
+	for i, _ := range closes {
+		if i < s.period {
+			continue
+		}
+		_, _, _, rsi := calculateCurrentRSI(closes[i-s.period : i])
+		s.rsiValues[i] = rsi
+		s.stochRSIValues[i] = (rsi - s.ll) / delta * 100
 	}
-	return stochrsiValues
+}
+
+func (s *StochRSI) Values() ([]float64, []float64) {
+	return s.stochRSIValues, s.rsiValues
 }
